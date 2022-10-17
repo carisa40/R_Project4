@@ -1,0 +1,204 @@
+---
+title: "Anita Blege - Assignment 4(Final Project)"
+author: "Anita Blege"
+date: "2022-10-15"
+output:
+  word_document: default
+  html_document:
+    theme:
+      bootswatch: minty
+---
+
+The titanic dataset describes the survival status of all passengers on the Titanic which sank in 1912 and killed 1,502 of its passengers and crew members. This dataset does not include information about crew members. The goal of modeling and performing analytics on this data is to gain insights on how important features such as sex, passenger class, and fare can affect the survival rate of passengers in similar situations and disasters especially taking into consideration several several social biases.
+
+
+```{r setup, include = FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(bslib)
+library(tidyverse)
+library(knitr)
+library(ggcorrplot)
+library(hrbrthemes)
+library(corrplot)
+library(tibble)
+library(explore)
+library(psych)
+library(caret)
+
+
+
+```
+The csv dataset was obtained from the Stanford CS109 repository (https://web.stanford.edu/class/archive/cs/cs109/cs109.1166/problem12.html)
+
+```{r, include = FALSE}
+getwd()
+
+
+titanic <- read.csv('titanic.csv')
+
+
+view (titanic)
+
+nrow(titanic)
+
+colnames(titanic)
+
+#check for any missing values
+colSums(is.na(titanic))
+
+## check for empty values
+colSums(titanic=='')
+
+#drop name column
+titanic = subset(titanic, select = -c(Name))
+
+```
+
+
+
+```{r echo = TRUE}
+describe(titanic)
+
+```
+The data has about `r nrow(titanic)` rows and `r ncol(titanic)` columns which are `rcolnames(titanic)`, 545 passengers died while 342 survived. The table below summarizes and describes the dataset `rdescribe(titanic)`: 
+
+
+During data preparation, missing values, wrong column types, and normalization will be performed to prepare the data for the modeling stage. 
+Below is a visual exploration of the raw data to understand the general distribution of the dataset. From the exploration we note that none of the columns have missing or empty values.
+
+
+
+```{r echo = TRUE}
+        
+titanic %>% explore_all
+
+table(titanic$Survived)
+
+titanic %>% explore(Fare, target = Survived, split = TRUE)
+
+titanic %>% explore(Sex, target = Survived, split = TRUE)
+
+titanic %>% explore(Pclass, target = Survived, split = TRUE)
+
+titanic %>% explore(Age, target = Survived, split = TRUE)
+
+titanic %>% explore(Siblings.Spouses.Aboard, target = Survived, split = TRUE)
+
+titanic %>% explore(Parents.Children.Aboard, target = Survived, split = TRUE)
+
+titanic %>% explore(Age, target = Pclass)
+
+titanic %>% explore(Sex, target = Pclass)
+
+
+```
+
+
+
+```{r include = TRUE}
+
+titanic %>% explain_tree(target = Survived)
+
+titanic %>% 
+  ggplot(aes(x = Age, fill = Survived)) +
+  geom_histogram() +
+  facet_wrap(~Sex + Pclass) +
+  theme_test() +
+  theme(
+    plot.title = element_text(family = "Times New Roman", hjust = 0.5),
+    axis.text = element_text(family = "Times New Roman", face = "bold"),
+    axis.title = element_text(family = "Times New Roman", face = "bold"),
+    legend.title = element_blank(),
+    legend.text = element_text(family = "Times New Roman")
+    
+  ) +
+  labs(title = "Survival Rate, Age, Sex, and Passenger Class")
+  
+
+```
+
+We see in the simple decision flow chart above that only 19% of male passengers less than age 13 survived. The decision tree and the distribution above suggests that sex, fare, and age increase the chances of survival of the passengers.
+
+
+A logistic regression model will be used on data split to 75/25 to predict the survival of passengers in the test data. Accuracy is the metric that will be used for assessing the results of the model.
+
+
+
+
+
+```{r echo = TRUE}
+
+
+  #val_split <- createDataPartition(titanic$Species, p=0.70, list=FALSE)
+
+  #split data into 75/25 for training and validating the model.
+  train_titanic <- titanic[1:667,]
+  test_titanic <- titanic[668:889,]
+  
+  #create the model
+  
+  titanic_log_reg <- glm(Survived ~.,family=binomial(link='logit'),data=train_titanic)
+
+  summary(titanic_log_reg)
+  
+  
+  #use anova to analyze  deviance
+  
+  anova(titanic_log_reg, test="Chisq")
+  
+  
+  
+#for accuracy
+#confusionMatrix(data=model_result, reference=test_titanic$Survived)
+  
+
+```
+
+
+
+
+```{r echo = TRUE}
+
+ 
+  #Testing For Accuracy Of The Model
+
+baseline_accuracy = 545 / (545 + 342)
+
+predict_train = predict(titanic_log_reg, type = "response")
+
+table(train_titanic$Survived, predict_train >= 0.5)
+
+accuracy = (181 + 349) / nrow(train_titanic)
+sensitivity = 181 / (181 + 80)
+specificity = 349 / (349 + 57)
+
+cat("accuracy: ", accuracy, " > ", "baseline: ", baseline_accuracy)
+
+  
+
+```
+
+
+
+```{r echo = TRUE}
+
+  #make predictions on test data
+  
+  model_result <- predict(titanic_log_reg,newdata=test_titanic,type='response')
+  model_result <- ifelse(model_result > 0.5,1,0)
+  
+  test_titanic$Survived = as.numeric(model_result >= 0.5)
+  table(test_titanic$Survived)
+
+  #save results of predictions to csv
+  Predictions = data.frame(test_titanic)
+  write.csv(file = "Titanic Predictions", x = Predictions)
+
+  
+
+```
+
+
+The Model is found to be 79.4% accurate with a baseline of 61.6%. For the test data, it predicted that 72 out of 220 test passengers survived.
